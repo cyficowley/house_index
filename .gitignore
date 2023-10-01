@@ -1,2 +1,4 @@
 frames/*
 tempdir/*
+frontend-server/node_modules
+frontend-server/node_modules/*

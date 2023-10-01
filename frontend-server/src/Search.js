@@ -32,11 +32,15 @@ export default function Search() {
                 <button className="search-button" onClick={getResults}>→</button>
             </div>
             <div className='image-container'>
+
                 {response !== null ? 
-                    response.images.map(imgUrl => {
+                    <>
+                    <h3 color='white'>{response.chat_res}</h3>
+                    {response.images.map(imgUrl => {
                         return (
                         <Result src={imgUrl}/>)
-                    })   : '' 
+                    })} 
+                    </>: ''
                 }
             </div>
         </div>
