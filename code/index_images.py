@@ -2,6 +2,7 @@ from nltk.stem.lancaster import LancasterStemmer
 import os
 from modify_image import bb_image
 from image import Image
+from multiprocessing import Lock
 
 
 RECENT_IMAGES_PER_TERM = 5
@@ -11,6 +12,7 @@ IMAGE_DIR_PREFIX = "image_dir"
 
 class ImageDatabase:
     def __init__(self):
+        self.lock = Lock()
         self.term_to_image_index = {}
         self.images = []
         self.stemmer = LancasterStemmer()
@@ -30,6 +32,7 @@ class ImageDatabase:
 
         index = len(self.images)
         stemmed_terms = [self.stemmer.stem(term) for term in terms]
+        self.lock.acquire()
         self.images.append(
             Image(self.dir_path, stemmed_terms, term_to_bbox, time_stamp, image_data)
         )
@@ -41,6 +44,7 @@ class ImageDatabase:
             if len(index_list) == RECENT_IMAGES_PER_TERM:
                 index_list.pop(0)
             index_list.append(index)
+        self.lock.release()
 
     def process_response_metadata(self, metadata_response):
         term_to_bbox = {}
@@ -62,6 +66,8 @@ class ImageDatabase:
         stemmed_terms = [self.stemmer.stem(term) for term in query_term_list]
 
         return_term_indexes = []
+        self.lock.acquire()
+
         for term in stemmed_terms:
             if term not in self.term_to_image_index:
                 continue
@@ -70,7 +76,12 @@ class ImageDatabase:
             # If I want to return multiple, here
             return_term_indexes.append((term, image_indexes[-1]))
 
-        return [(term, self.images[index]) for (term, index) in return_term_indexes]
+        final_list = [
+            (term, self.images[index]) for (term, index) in return_term_indexes
+        ]
+        self.lock.release()
+
+        return final_list
 
     def get_bounding_box_paths_for_query(self, query):
         final_image_terms = self.get_images_for_query(query)

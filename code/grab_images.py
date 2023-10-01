@@ -2,6 +2,7 @@
 import cv2
 import urllib.request
 import numpy as np
+import asyncio
 
 
 def laplacian(img):
@@ -62,22 +63,39 @@ def pick_best_pics(images):
     return [best_pair[0] for best_pair in picked_images]
 
 
-stream = urllib.request.urlopen("http://192.168.7.2:8081/")
-bytes = bytes()
-img_num = 0
-images = []
-while True:
-    bytes += stream.read(1024)
-    a = bytes.find(b"\xff\xd8")
-    b = bytes.find(b"\xff\xd9")
-    if a != -1 and b != -1:
-        jpg = bytes[a : b + 2]
-        bytes = bytes[b + 2 :]
-        img = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
-        images.append(img)
-        if img_num == 20:
-            print("GOT MY IMS")
-            pick_best_pics(images)
-            exit(0)
+async def get_api_response_for_images(images):
+    print("yeet")
 
-        img_num += 1
+
+BATCH_SIZE = 20
+
+
+def start_image_grabbing_process():
+    stream = urllib.request.urlopen("http://192.168.7.2:8081/")
+    bytes = bytes()
+    img_num = 0
+    images = []
+    last_api_response = None
+    while True:
+        bytes += stream.read(1024)
+        a = bytes.find(b"\xff\xd8")
+        b = bytes.find(b"\xff\xd9")
+        if a != -1 and b != -1:
+            jpg = bytes[a : b + 2]
+            bytes = bytes[b + 2 :]
+            img = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+            images.append(img)
+            if last_api_response is not None:
+                if not last_api_response.done():
+                    images = []
+                    continue
+
+            img_num += 1
+
+            if img_num == BATCH_SIZE:
+                final_images = pick_best_pics(images)
+                last_api_response = asyncio.create_task(
+                    get_api_response_for_images(final_images)
+                )
+                images = []
+                img_num = 0
