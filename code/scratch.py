@@ -25,3 +25,4 @@ with open(
 print(len(response.request.body))
 
 print(response)
+print(response.json())

@@ -3,6 +3,9 @@ import cv2
 import urllib.request
 import numpy as np
 import asyncio
+import requests
+from index_images import ImageDatabase
+import time
 
 
 def laplacian(img):
@@ -53,54 +56,58 @@ def pick_best_pics(images):
             and blur_num > BLUR_THRESHOLD
         ):
             picked_images.append(image_hist_pairs[img_index])
-        print(f"img_num {img_num} similarities {similarities}, blur {blur_num}")
+        # print(f"img_num {img_num} similarities {similarities}, blur {blur_num}")
 
-        cv2.imwrite(f"./../frames/asdf_{img_num}.jpg", img)
+        # cv2.imwrite(f"./../frames/asdf_{img_num}.jpg", img)
 
-    for i, best in enumerate(picked_images):
-        cv2.imwrite(f"./../frames/best_{i}.jpg", best[0])
+    # for i, best in enumerate(picked_images):
+    #     cv2.imwrite(f"./../frames/best_{i}.jpg", best[0])
 
     return [best_pair[0] for best_pair in picked_images]
 
 
-async def get_api_response_for_images(images):
-    print("yeet")
+def write_api_responses_to_database(images, image_database: ImageDatabase):
+    print("TRYINA DO THIS??")
+    for image in images:
+        print("TRYINA DO THIS 2??")
+        cv2.imwrite("/tmp/written_img.jpg", image)
+        with open("/tmp/written_img.jpg", "rb") as image_file:
+            print("MADE REQUEST")
+            response = requests.post(
+                "https://wm4uy0lywetgeb-5000.proxy.runpod.net/gangsta_inference",
+                files={"image": image_file},
+            )
+            repsonse_metadata = response.json()
+            print("ADDED IMAGE")
+            print("Adding with id ", id(image_database))
+            image_database.add_image(repsonse_metadata, time.time(), image)
 
 
-BATCH_SIZE = 20
+BATCH_SIZE = 1
 
 
 def start_image_grabbing_process():
-    stream = urllib.request.urlopen("http://192.168.7.2:8081/")
+    stream = urllib.request.urlopen("http://192.168.0.68:8081/")
     bytes_stream = bytes()
     img_num = 0
     images = []
     last_api_response = None
+    image_database = ImageDatabase()
     while True:
         bytes_stream += stream.read(1024)
         a = bytes_stream.find(b"\xff\xd8")
         b = bytes_stream.find(b"\xff\xd9")
         if a != -1 and b != -1:
+            print("Captured image")
             jpg = bytes_stream[a : b + 2]
             bytes_stream = bytes_stream[b + 2 :]
             img = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
             images.append(img)
+            if img_num % 3 == 0:
+                write_api_responses_to_database([img], image_database)
 
             img_num += 1
 
-            if img_num == BATCH_SIZE:
-                if last_api_response is not None:
-                    if not last_api_response.done():
-                        images = []
-                        continue
-                final_images = pick_best_pics(images)
-                exit()
-                last_api_response = asyncio.create_task(
-                    get_api_response_for_images(final_images)
-                )
-                images = []
-                img_num = 0
 
-
-if __name__ == "__main__":
-    start_image_grabbing_process()
+# if __name__ == "__main__":
+#     start_image_grabbing_process()
